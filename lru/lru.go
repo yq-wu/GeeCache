@@ -1,4 +1,4 @@
-package GeeCache
+package lru
 
 import "container/list"
 
@@ -11,7 +11,7 @@ type Cache struct {
 }
 
 type Value interface {
-	len() int
+	Len() int
 }
 
 type Entry struct {
@@ -42,7 +42,7 @@ func (c *Cache) RemoveOldest() {
 		c.ll.Remove(ele)
 		kv := ele.Value.(*Entry)
 		delete(c.cache, kv.key)
-		c.nBytes -= int64(len(kv.key)) + int64(kv.value.len())
+		c.nBytes -= int64(len(kv.key)) + int64(kv.value.Len())
 		if c.OnEvicted != nil {
 			c.OnEvicted(kv.key, kv.value)
 		}
@@ -53,14 +53,14 @@ func (c *Cache) Add(key string, value Value) {
 	if ele, ok := c.cache[key]; ok {
 		kv := ele.Value.(*Entry)
 		c.ll.MoveToFront(ele)
-		c.nBytes += int64(value.len()) - int64(kv.value.len())
+		c.nBytes += int64(value.Len()) - int64(kv.value.Len())
 		kv.value = value
 	} else {
 		ele := c.ll.PushFront(&Entry{
 			key:   key,
 			value: value,
 		})
-		c.nBytes += int64(value.len()) + int64(len(key))
+		c.nBytes += int64(value.Len()) + int64(len(key))
 		c.cache[key] = ele
 	}
 	for c.maxBytes != 0 && c.maxBytes < c.nBytes {

@@ -1,4 +1,4 @@
-package GeeCache
+package lru
 
 import (
 	"reflect"
@@ -7,7 +7,7 @@ import (
 
 type String string
 
-func (d String) len() int {
+func (d String) Len() int {
 	return len(d)
 }
 
@@ -27,11 +27,11 @@ func (c *Cache) len() int {
 	return c.ll.Len()
 }
 
-func TestRemoveoldest(t *testing.T) {
+func TestRemoveOldest(t *testing.T) {
 	k1, k2, k3 := "key1", "key2", "k3"
 	v1, v2, v3 := "value1", "value2", "v3"
-	cap := len(k1 + k2 + v1 + v2)
-	lru := New(int64(cap), nil)
+	Cap := len(k1 + k2 + v1 + v2)
+	lru := New(int64(Cap), nil)
 	lru.Add(k1, String(v1))
 	lru.Add(k2, String(v2))
 	lru.Add(k3, String(v3))

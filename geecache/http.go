@@ -1,17 +1,25 @@
 package geecache
 
 import (
+	"GeeCache/consistenthash"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 )
 
-const defaultBasePath = "/_geecache/"
+const (
+	defaultBasePath = "/_geecache/"
+	defaultReplicas = 50
+)
 
 type HTTPPool struct {
-	self     string
-	basePath string
+	self        string
+	basePath    string
+	mu          sync.Mutex
+	peers       *consistenthash.Map
+	httpGetters map[string]*httpGetter
 }
 
 func NewHTTPPool(self string) *HTTPPool {
@@ -49,4 +57,25 @@ func (h *HTTPPool) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(view.ByteSlice())
+}
+
+func (h *HTTPPool) PeerPick(key string) (PeerGetter, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	peer := h.peers.Get(key)
+	if peer != "" && peer != h.self {
+		return h.httpGetters[peer], true
+	}
+	return nil, false
+}
+
+func (h *HTTPPool) Set(peers ...string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.peers = consistenthash.New(defaultReplicas, nil)
+	h.peers.Add(peers...)
+	h.httpGetters = make(map[string]*httpGetter, len(peers))
+	for _, peer := range peers {
+		h.httpGetters[peer] = &httpGetter{baseURL: peer + h.basePath}
+	}
 }

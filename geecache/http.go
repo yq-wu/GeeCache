@@ -2,7 +2,9 @@ package geecache
 
 import (
 	"GeeCache/consistenthash"
+	"GeeCache/geecachepb"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"log"
 	"net/http"
 	"strings"
@@ -55,8 +57,13 @@ func (h *HTTPPool) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	body, err := proto.Marshal(&geecachepb.Response{Value: view.ByteSlice()})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(view.ByteSlice())
+	w.Write(body)
 }
 
 func (h *HTTPPool) PeerPick(key string) (PeerGetter, bool) {

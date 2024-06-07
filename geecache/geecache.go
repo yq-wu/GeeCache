@@ -1,6 +1,7 @@
 package geecache
 
 import (
+	"GeeCache/singleflight"
 	"fmt"
 	"log"
 	"sync"
@@ -21,6 +22,7 @@ type Group struct {
 	getter    Getter
 	mainCache Cache
 	peers     PeerPicker
+	loader    *singleflight.Group
 }
 
 var (
@@ -38,6 +40,7 @@ func NewGroup(name string, cacheByte int64, getter Getter) *Group {
 		name:      name,
 		mainCache: Cache{cacheBytes: cacheByte},
 		getter:    getter,
+		loader:    &singleflight.Group{},
 	}
 	groups[name] = group
 	return group
@@ -60,15 +63,22 @@ func (g *Group) Get(key string) (ByteView, error) {
 }
 
 func (g *Group) Load(key string) (value ByteView, err error) {
-	if g.peers != nil {
-		if peer, ok := g.peers.PeerPick(key); ok {
-			if value, err := g.getFromPeer(peer, key); err == nil {
-				return value, nil
+	view, err := g.loader.Do(key, func() (interface{}, error) { // 匿名函数的作用是向其他缓存节点获取数据，
+		// 用do来保证后面的匿名函数只实现一次即可 // do里面保证多个goroutine同时访问时， 只有1个goroutine在执行后面的匿名函数，其他的都在等待
+		if g.peers != nil {
+			if peer, ok := g.peers.PeerPick(key); ok {
+				if value, err := g.getFromPeer(peer, key); err == nil {
+					return value, nil
+				}
+				log.Println("[GeeCache] Failed to get from peer")
 			}
-			log.Println("[GeeCache] Failed to get from peer")
 		}
+		return g.GetLocally(key)
+	})
+	if err == nil {
+		return view.(ByteView), nil
 	}
-	return g.GetLocally(key)
+	return
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
